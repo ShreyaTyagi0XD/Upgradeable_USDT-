@@ -4,11 +4,11 @@ require('@nomiclabs/hardhat-waffle');
 require('@openzeppelin/hardhat-upgrades');
 
 module.exports = {
-  solidity: "0.8.20",
+  solidity: "0.8.0",
   networks: {
-    localhost: {
-      url: 'http://localhost:8545',
-      accounts: [process.env.LOCALHOST_PRIVATE_KEY],
+    avalanche: {
+      url: 'https://api.avax-test.network/ext/bc/C/rpc',
+      accounts: [process.env.PRIVATE_KEY],
     },
   },
   settings: {

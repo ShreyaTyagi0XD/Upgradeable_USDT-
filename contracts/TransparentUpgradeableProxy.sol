@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
-
-pragma solidity ^0.8.20;
+pragma solidity 0.8.0;
 
 /**
  * @dev This abstract contract provides a fallback function that delegates all calls to another contract using the EVM
@@ -377,14 +376,6 @@ library StorageSlot {
 }
 
 
-/**
- * @dev This abstract contract provides getters and event emitting update functions for
- * https://eips.ethereum.org/EIPS/eip-1967[EIP1967] slots.
- *
- * _Available since v4.1._
- *
- * @custom:oz-upgrades-unsafe-allow delegatecall
- */
 abstract contract ERC1967Upgrade {
     // This is the keccak-256 hash of "eip1967.proxy.rollback" subtracted by 1
     bytes32 private constant _ROLLBACK_SLOT = 0x4910fdfa16fed3260ed0e7147f7cc6da11a60208b5b9406d12a635614ffd9143;
@@ -587,22 +578,6 @@ contract ERC1967Proxy is Proxy, ERC1967Upgrade {
 }
 
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-
-contract Logic_Implementation is ERC20Upgradeable, Initializable {
-    function initialize(string memory name_, string memory symbol_, uint256 initialSupply_) initializer public {
-        __ERC20_init(name_, symbol_);
-        _mint(msg.sender, initialSupply_);
-    }
-
-    function transferTo(address to, uint256 amount) external {
-        // Transfer tokens using the ERC-20 transfer function
-        _transfer(msg.sender, to, amount);
-    }
-}
-
-
 /**
  * @dev This contract implements a proxy that is upgradeable by an admin.
  *
@@ -670,17 +645,6 @@ contract TransparentUpgradeableProxy is ERC1967Proxy {
     function implementation() external ifAdmin returns (address implementation_) {
         implementation_ = _implementation();
     }
-
-    
-     function transferTo(address to, uint256 amount) external {
-    // Delegate the transferToContract function to the implementation contract
-    (bool success, ) = _implementation().delegatecall(
-        abi.encodeWithSignature("transferToContract(address,uint256)", to, amount)
-    );
-
-    require(success, "Transfer failed");
-}
-
 
     /**
      * @dev Changes the admin of the proxy.

@@ -1,57 +1,83 @@
-const { ethers } = require('ethers');
-const mysql = require('mysql2/promise');
+const express = require('express');
+const { Web3 } = require('web3');
+const mysql = require('mysql2');
+const { EventEmitter } = require('events');
+const { TIMESTAMP } = require('mysql/lib/protocol/constants/types');
 
-// Configure your Ethereum provider and contract addresses
-const provider = new ethers.providers.JsonRpcProvider('YOUR_ETHEREUM_RPC_URL');
-const proxyAddress = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
+const app = express();
+const PORT = 3306;
+const myEventEmitter = new EventEmitter();
+myEventEmitter.setMaxListeners(2);
 
-// MySQL database configuration
-const dbConfig = {
+// Connect to Avalanche Fuji C-Chain (testnet)
+const web3 = new Web3('https://rpc.ankr.com/avalanche_fuji-c');
+
+// Connect to MySQL database
+const connection = mysql.createPool({
   host: 'localhost',
   user: 'root',
   password: '',
-  database: 'database',
-};
+  database: 'transaction_details',
+  port: 8090,
+});
 
-//  Connect to MySQL database
-async function connectToDatabase() {
-  const connection = await mysql.createConnection(dbConfig);
-  console.log('Connected to MySQL database');
-  return connection;
-}
+module.exports = connection;
 
-// Insert transaction details into the database
-async function insertTransaction(connection, from, to, amount) {
-  const [rows] = await connection.execute(
-    'INSERT INTO transactions (from_address, to_address, amount) VALUES (?, ?, ?)',
-    [from, to, amount]
-  );
-  console.log(`Transaction inserted with ID: ${rows.insertId}`);
-}
+connection.connect((err) => {
+  if (err) {
+    console.error('Error connecting to MySQL:', err);
+    throw err;
+  }
+  console.log('Connected to MySQL');
+});
 
-// Deploy the proxy contract and perform a transaction
-async function deployAndTransfer() {
-  const signer = new ethers.Wallet('YOUR_PRIVATE_KEY', provider);
-  const proxyContract = new ethers.Contract(proxyAddress, ['function transferToContract(address, uint256)'], signer);
+app.use(express.json());
 
-  // Connect to the database
-  const dbConnection = await connectToDatabase();
+// API endpoint to handle transfer function
+app.post('/transfer', async (req, res) => {
+  const { transactionHash } = '0x885f641939fd6230e6d27ece7d339c9e07c1fb6401258becd763759b72116c20';
+
+  // Fetch transaction details from Avalanche using the provided transaction hash
+  const transactionDetails = await getTransactionDetails(transactionHash);
+
+  // Insert transaction details into the database
+  insertTransactionDetails(transactionDetails);
+
+  res.json({ success: true, message: 'Transaction details inserted successfully' });
+});
+
+// Function to get transaction details from Avalanche using the transaction hash
+async function getTransactionDetails(transactionHash) {
+  const avaxScanUrl = `https://testnet.avascan.info/blockchain/c/tx/${transactionHash}`;
 
   try {
-    // Perform a transaction using the proxy contract
-    const toAddress = 'RECIPIENT_ADDRESS';
-    const amount = ethers.utils.parseEther('1.0');
-    const transaction = await proxyContract.transferToContract(toAddress, amount);
-
-    // Insert transaction details into the database
-    await insertTransaction(dbConnection, signer.address, toAddress, amount.toString());
+    const avaxScanResponse = await axios.get(avaxScanUrl);
+    return avaxScanResponse.data;
   } catch (error) {
-    console.error('Error during transaction:', error);
-  } finally {
-    // Close the database connection
-    await dbConnection.end();
+    console.error('Error fetching transaction details from AVAXScan:', error);
+    throw new Error('Error fetching transaction details from AVAXScan');
   }
 }
 
-// Run the script
-deployAndTransfer();
+// Function to insert transaction details into the MySQL database
+function insertTransactionDetails(transactionDetails) {
+  const { sender, receiver, amount, timestamp } = transactionDetails;
+
+  const insertQuery = `
+    INSERT INTO transactions (\`Sender Address\`, \`Receiver Address\`, Amount, Timestamp)
+    VALUES (?, ?, ?, ?)
+  `;
+
+  const values = [sender, receiver, amount, timestamp];
+  connection.query(insertQuery, values, (err) => {
+    if (err) {
+      console.error('Error inserting into the database:', err);
+      throw new Error('Error inserting into the database');
+    }
+    console.log('Transaction details inserted into the database');
+  });
+}
+
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
